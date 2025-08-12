@@ -11,8 +11,10 @@ import SwipeRow from '../../src/components/SwipeRow';
 import DotsMenu from '../../src/components/DotsMenu';
 import { toast } from '../../src/utils/toast';
 import PromptModal from '../../src/components/PromptModal';
+import Divider from '../../src/components/Divider';
+import TypePill from '../../src/components/TypePill';
 
-type PRow = any; // viene del store ya mapeado
+type PRow = any;
 
 export default function GalaxyScreen() {
   const { id } = useLocalSearchParams<{id: string}>();
@@ -62,7 +64,6 @@ export default function GalaxyScreen() {
     );
   }
 
-  // ---- RENDER SISTEMA (lista corta con FlatList deshabilitando scroll) ----
   const renderSystem = ({ item }: { item: any }) => {
     const askDeleteSystem = () => {
       Alert.alert(
@@ -95,7 +96,6 @@ export default function GalaxyScreen() {
     );
   };
 
-  // ---- RENDER PLANETA (usamos FlatList para evitar problemas de layout) ----
   const renderPlanet: ListRenderItem<PRow> = ({ item, index }) => {
     let notesCount = 0;
     try {
@@ -141,6 +141,7 @@ export default function GalaxyScreen() {
           onView={(pid) => router.push(`/planet/${pid}`)}
           onEdit={(pid) => router.push({ pathname: '/planet/[id]', params: { id: pid, edit: '1' } })}
           onDelete={askDeletePlanet}
+          onEditAvatar={(pid) => router.push({ pathname: '/planet/[id]', params: { id: pid, editAvatar: '1' } })}
         />
       </SwipeRow>
     );
@@ -149,13 +150,15 @@ export default function GalaxyScreen() {
   return (
     <Screen scroll>
       <Text style={[T.h1, { color: Colors.text }]}>{galaxy.name}</Text>
-      <Text style={[T.p, { color: Colors.textDim, marginTop: S.sm }]}>Galaxia</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: S.sm }}>
+        <Text style={[T.p, { color: Colors.textDim }]}>Galaxia</Text>
+        <TypePill type="galaxy" />
+      </View>
 
       {!!systems.length && (
         <>
-          <Text style={[T.h3, { color: Colors.cyan, marginTop: S.lg, marginBottom: S.sm }]}>
-            Sistemas
-          </Text>
+          <Divider />
+          <Text style={[T.h3, { color: Colors.cyan, marginTop: S.sm, marginBottom: S.sm }]}>Sistemas</Text>
           <FlatList
             data={systems}
             keyExtractor={it => it.id}
@@ -169,7 +172,8 @@ export default function GalaxyScreen() {
 
       {!!allPlanets.length && (
         <>
-          <Text style={[T.h3, { color: Colors.cyan, marginTop: S.lg, marginBottom: S.sm }]}>
+          <Divider />
+          <Text style={[T.h3, { color: Colors.cyan, marginTop: S.sm, marginBottom: S.sm }]}>
             Todos los planetas de esta galaxia
           </Text>
           <FlatList
@@ -184,9 +188,12 @@ export default function GalaxyScreen() {
       )}
 
       {!systems.length && !allPlanets.length && (
-        <Text style={[T.p, { color: Colors.textDim, marginTop: S.lg }]}>
-          Esta galaxia está vacía.
-        </Text>
+        <>
+          <Divider />
+          <Text style={[T.p, { color: Colors.textDim, marginTop: S.lg }]}>
+            Esta galaxia está vacía.
+          </Text>
+        </>
       )}
 
       <Pressable 

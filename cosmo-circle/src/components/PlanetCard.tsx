@@ -1,59 +1,70 @@
+// src/components/PlanetCard.tsx
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp, useSharedValue, withSpring, useAnimatedStyle } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { S } from '../theme/spacing';
+import { typeColors } from './TypePill';
 
 export type PlanetCardGroup = { id: string; name: string; color?: string | null };
 export type PlanetCardProps = {
   id: string;
   name: string;
   company?: string | null;
-  notesCount?: number;        // cantidad de notas (para el indicador)
-  groups: PlanetCardGroup[];  // galaxias/sistemas a los que pertenece
-  emoji?: string | null;      // opcional para avatar; si no hay se usan iniciales
-  index?: number;             // para stagger de animación (opcional)
+  notesCount?: number;
+  groups: PlanetCardGroup[];
+  emoji?: string | null;
+  index?: number;
   onPress?: (id: string) => void;
   onView?: (id: string) => void;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onEditAvatar?: (id: string) => void;
 };
 
+/* ---------- helpers ---------- */
 const getInitials = (full: string) =>
-  full
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map(s => s[0]?.toUpperCase() ?? '')
-    .join('');
+  full.trim().split(/\s+/).slice(0, 2).map(s => s[0]?.toUpperCase() ?? '').join('');
+
+/** genera un par (tupla) de colores a partir de un string, para el gradiente del avatar */
+const hashToHue = (str: string) => {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 360;
+  return h;
+};
+const avatarGradient = (seed: string): readonly [ColorValue, ColorValue] => {
+  const h = hashToHue(seed || 'seed');
+  // devolvemos una TUPLA readonly de ColorValue, no string[]
+  return [`hsl(${h} 85% 55%)`, `hsl(${(h + 35) % 360} 85% 45%)`] as const;
+};
 
 const Chip = ({ label, color }: { label: string; color?: string | null }) => (
   <View style={[styles.chip, { backgroundColor: (color ?? '#24304f') + '55', borderColor: color ?? '#24304f' }]}>
-    <Text style={styles.chipText}>{label}</Text>
+    <Text style={styles.chipText} numberOfLines={1}>{label}</Text>
   </View>
 );
 
+/* ---------- component ---------- */
 export default function PlanetCard({
   id, name, company, notesCount = 0, groups, emoji, index = 0,
-  onPress, onView, onEdit, onDelete
+  onPress, onView, onEdit, onDelete, onEditAvatar
 }: PlanetCardProps) {
 
-  // Color dominante para acentos (del primer grupo con color, si existe)
   const accent = useMemo(() => groups.find(g => g.color)?.color ?? Colors.cyan, [groups]);
 
-  // Animación al presionar (scale + halo)
+  // micro-interacciones
   const pressed = useSharedValue(0);
   const aCard = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(pressed.value ? 0.98 : 1, { stiffness: 400, damping: 18 }) }]
+    transform: [{ scale: withSpring(pressed.value ? 0.985 : 1, { stiffness: 420, damping: 18 }) }],
+    shadowOpacity: withSpring(pressed.value ? 0.35 : 0.2),
   }));
   const aHalo = useAnimatedStyle(() => ({
     opacity: withSpring(pressed.value ? 1 : 0, { stiffness: 400, damping: 20 })
   }));
 
-  // Acciones de swipe (derecha → acciones)
   const renderRightActions = () => (
     <View style={styles.actionsWrap}>
       <ActionBtn icon="eye" label="Ver" onPress={() => onView?.(id)} />
@@ -62,36 +73,35 @@ export default function PlanetCard({
     </View>
   );
 
+  const grad = avatarGradient(name || id); // <- ahora es una tupla compatible
+
   return (
-    <Animated.View entering={FadeInUp.delay(index * 60).springify()} style={[aCard]}>
+    <Animated.View entering={FadeInUp.delay(index * 60).springify()} style={[aCard, styles.shadow]}>
       <Swipeable overshootRight={false} renderRightActions={renderRightActions}>
         <Pressable
           onPress={() => onPress?.(id)}
+          onLongPress={() => onEdit?.(id)}
           onPressIn={() => (pressed.value = 1)}
           onPressOut={() => (pressed.value = 0)}
           style={styles.press}
         >
-          {/* Borde gradiente */}
-          <LinearGradient
-            colors={[`${accent}99`, '#1a223f']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.border}
-          />
-          {/* Halo al presionar */}
+          {/* borde gradiente suave */}
+          <LinearGradient colors={[`${accent}66`, '#1a223f']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.border} />
+          {/* halo on tap */}
           <Animated.View style={[styles.halo, aHalo]} />
 
-          {/* Contenido */}
+          {/* contenido */}
           <View style={styles.card}>
-            {/* Header: avatar + indicadores + menú (si quisieras agregar dots) */}
             <View style={styles.headerRow}>
-              <View style={[styles.avatar, { borderColor: accent }]}>
-                <Text style={styles.avatarEmoji}>
-                  {emoji ?? getInitials(name || 'P')}
-                </Text>
-              </View>
+              <Pressable onPress={() => onEditAvatar?.(id)} style={{ borderRadius: 999, overflow: 'hidden' }}>
+                <View style={[styles.avatar, { borderColor: accent }]}>
+                  <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+                  <Text style={styles.avatarEmoji}>
+                    {emoji ?? getInitials(name || 'P')}
+                  </Text>
+                </View>
+              </Pressable>
 
-              {/* Indicadores: empresa / notas / #grupos */}
               <View style={styles.indicators}>
                 {!!company && <Ionicons name="business-outline" size={16} color={Colors.textDim} />}
                 {notesCount > 0 && <Ionicons name="document-text-outline" size={16} color={Colors.textDim} />}
@@ -99,7 +109,6 @@ export default function PlanetCard({
               </View>
             </View>
 
-            {/* Nombre y empresa */}
             <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
               {name || '(Sin nombre)'}
             </Text>
@@ -109,7 +118,6 @@ export default function PlanetCard({
               </Text>
             )}
 
-            {/* Chips de grupos (máx 3 + “+n”) */}
             {groups.length > 0 && (
               <View style={styles.chipsRow}>
                 {groups.slice(0, 3).map(g => <Chip key={g.id} label={g.name} color={g.color} />)}
@@ -127,9 +135,8 @@ export default function PlanetCard({
   );
 }
 
-function ActionBtn({
-  icon, label, onPress, danger
-}: { icon: any; label: string; onPress?: () => void; danger?: boolean }) {
+/* ---------- subcomponents ---------- */
+function ActionBtn({ icon, label, onPress, danger }: { icon: any; label: string; onPress?: () => void; danger?: boolean }) {
   return (
     <Pressable onPress={onPress} style={[styles.actionBtn, danger && { backgroundColor: '#E11D48' }]}>
       <Ionicons name={icon} size={18} color="#fff" />
@@ -138,7 +145,13 @@ function ActionBtn({
   );
 }
 
+/* ---------- styles ---------- */
 const styles = StyleSheet.create({
+  shadow: {
+    shadowColor: '#000',
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+  },
   press: {
     borderRadius: 18,
     overflow: 'hidden',
@@ -171,7 +184,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
   },
   avatarEmoji: {
     color: '#fff',
@@ -183,13 +196,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    color: Colors.text,
+    color: '#fff',
     fontSize: 18,
     fontWeight: '800',
     lineHeight: 22,
   },
   subtitle: {
-    color: Colors.textDim,
+    color: '#9CA3AF',
     fontSize: 14,
   },
   chipsRow: {
@@ -203,6 +216,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 10,
     borderWidth: 1,
+    maxWidth: '75%',
   },
   chipText: {
     color: '#fff',
