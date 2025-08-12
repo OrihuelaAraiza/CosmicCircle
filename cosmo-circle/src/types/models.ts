@@ -1,18 +1,14 @@
-export type GroupType = 'galaxy' | 'system';
-
+// src/types/models.ts
 export type Group = {
   id: string;
   name: string;
-  type: GroupType;
-  parentId?: string | null;
-  // 🎨 Personalización
-  color?: string | null; // hex (ej. #7C3AED)
-  icon?: string | null;  // emoji o nombre Ionicons (prefijo ion:)
+  type: 'galaxy' | 'system';
+  parentId: string | null;
+  color?: string | null;
+  icon?: string | null;
   createdAt: number;
   updatedAt: number;
 };
-
-export type SocialLink = { type: string; url: string };
 
 export type Planet = {
   id: string;
@@ -23,9 +19,10 @@ export type Planet = {
   email?: string | null;
   howWeMet?: string | null;
   commonGround?: string | null;
-  notes?: string[];     // serializado en DB
-  keywords?: string[];  // serializado en DB
-  socials?: SocialLink[]; // serializado en DB
+  notes?: string[];   // JSON
+  keywords?: string[];// JSON
+  socials?: { type: string; url: string }[]; // JSON
+  emoji?: string | null; // 👈 NUEVO
   createdAt: number;
   updatedAt: number;
 };

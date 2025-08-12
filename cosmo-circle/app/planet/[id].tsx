@@ -1,106 +1,97 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Text, Linking, Pressable, View } from 'react-native';
+import { View, Text } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Screen from '../../src/components/Screen';
 import { Colors } from '../../src/theme/colors';
 import { S } from '../../src/theme/spacing';
 import { T } from '../../src/theme/typography';
 import { useDB } from '../../src/store/useDB';
+import PlanetDetailCard from '../../src/components/PlanetDetailCard';
 import { toast } from '../../src/utils/toast';
 
 export default function PlanetScreen() {
-  const { id } = useLocalSearchParams<{id:string}>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+
   const planets = useDB(s => s.planets);
-  const p = useMemo(()=> planets.find(x => x.id===id), [id, planets]);
-
+  const groups = useDB(s => s.groups);
   const getGroupsByPlanet = useDB(s => s.getGroupsByPlanet);
-  const unlink = useDB(s => s.unlinkPlanetFromGroup);
-  const [groups, setGroups] = useState<any[]>([]);
+  const updatePlanet = useDB(s => s.updatePlanet);
+  const deletePlanet = useDB(s => s.deletePlanet);
 
-  useEffect(()=>{ (async()=> setGroups(id ? await getGroupsByPlanet(id) : []) )() }, [id, planets.length]);
+  const planet = useMemo(() => planets.find(p => p.id === id), [planets, id]);
+  const [pGroups, setPGroups] = useState<any[]>([]);
 
-  if (!p) return null;
+  useEffect(() => {
+    (async () => {
+      if (!id) return;
+      const gs = await getGroupsByPlanet(id);
+      setPGroups(gs);
+    })();
+  }, [id, getGroupsByPlanet]);
 
-  // helpers locales para normalizar arrays
-  const toArray = (val: unknown) => {
-    if (Array.isArray(val)) return val as any[];
-    if (typeof val === 'string') {
-      try { return JSON.parse(val) as any[]; } catch { return []; }
-    }
-    return [];
+  if (!planet) {
+    return (
+      <Screen>
+        <Text style={[T.h1, { color: Colors.text }]}>Planeta no encontrado</Text>
+      </Screen>
+    );
+  }
+
+  const allGroups = groups.map(g => ({ id: g.id, name: g.name, color: g.color, type: g.type }));
+
+  const onSave = async (payload: any, groupIds: string[]) => {
+    await updatePlanet(
+      {
+        ...planet,
+        fullName: payload.fullName,
+        jobTitle: payload.jobTitle,
+        company: payload.company,
+        phone: payload.phone,
+        email: payload.email,
+        howWeMet: payload.howWeMet,
+        commonGround: payload.commonGround,
+        emoji: payload.emoji,
+        notes: payload.notes ?? [],
+      },
+      groupIds
+    );
+    toast.success('Cambios guardados');
   };
 
-  const socials: Array<{ type: string; url: string }> = toArray(p?.socials);
-  const notesArr: string[] = toArray(p?.notes);
+  const onDelete = async () => {
+    await deletePlanet(planet.id);
+    toast.success('Planeta eliminado');
+    router.back();
+  };
 
   return (
-    <Screen>
-      <Text style={[T.h1, { color: Colors.text }]}>{p.fullName}</Text>
-      <Text style={{ color: Colors.textDim }}>{[p.jobTitle, p.company].filter(Boolean).join(' @ ') || '—'}</Text>
+    <Screen scroll>
+      <PlanetDetailCard
+        planet={{
+          id: planet.id,
+          fullName: planet.fullName,
+          jobTitle: planet.jobTitle,
+          company: planet.company,
+          phone: planet.phone,
+          email: planet.email,
+          howWeMet: planet.howWeMet,
+          commonGround: planet.commonGround,
+          emoji: planet.emoji ?? '🪐',
+          notes: planet.notes ?? [],
+          groups: pGroups.map(g => ({ id: g.id, name: g.name, color: g.color, type: g.type }))
+        }}
+        allGroups={allGroups}
+        onSave={onSave}
+        onDelete={onDelete}
+      />
 
-      {/* Acciones rápidas */}
-      <View style={{ flexDirection:'row', gap: 10, marginTop: S.sm }}>
-        {!!p.phone && <Action text="Llamar" onPress={() => Linking.openURL(`tel:${p.phone}`)} />}
-        {!!p.email && <Action text="Email" onPress={() => Linking.openURL(`mailto:${p.email}`)} />}
-        <Action text="Editar" onPress={() => router.push(`/planet/${p.id}/edit`)} />
-      </View>
-
-      {/* Redes */}
-      {!!socials.length && (
-        <>
-          <Section title="Redes" />
-          {socials.map((s, i) => (
-            <Action key={i} text={s.type} onPress={() => Linking.openURL(s.url)} />
-          ))}
-        </>
-      )}
-
-      {/* Cómo nos conocimos / En común */}
-      {!!p.howWeMet && <>
-        <Section title="Cómo nos conocimos" />
-        <Text style={{color: Colors.text}}>{p.howWeMet}</Text>
-      </>}
-      {!!p.commonGround && <>
-        <Section title="En común" />
-        <Text style={{color: Colors.text}}>{p.commonGround}</Text>
-      </>}
-
-      {/* Notas */}
-      {!!notesArr.length && (
-        <>
-          <Section title="Notas" />
-          {notesArr.map((n,i)=><Text key={i} style={{color: Colors.text}}>{`• ${n}`}</Text>)}
-        </>
-      )}
-
-      {/* Grupos a los que pertenece */}
-      <Section title="Grupos" />
-      <View style={{ flexDirection:'row', flexWrap:'wrap', gap: 8 }}>
-        {groups.map(g => (
-          <View key={g.id} style={{ flexDirection:'row', alignItems:'center', gap:6, backgroundColor: Colors.surface, paddingVertical:6, paddingHorizontal:10, borderRadius: 16 }}>
-            <Text style={{ color: Colors.text }}>{g.name}</Text>
-            <Pressable
-              onPress={async ()=>{ await unlink(p.id, g.id); setGroups(await getGroupsByPlanet(p.id)); toast.success('Quitado de grupo', g.name); }}
-              style={{ width:18, height:18, borderRadius:9, backgroundColor: Colors.error, alignItems:'center', justifyContent:'center' }}
-            >
-              <Text style={{ color:'#000', fontWeight:'900', marginTop:-1 }}>×</Text>
-            </Pressable>
-          </View>
-        ))}
-        {!groups.length && <Text style={{color: Colors.textDim}}>Sin grupos asignados.</Text>}
+      {/* (Opcional) encabezado simple fuera de la card */}
+      <View style={{ marginTop: S.sm }}>
+        <Text style={[T.p, { color: Colors.textDim }]}>
+          Última actualización: {new Date(planet.updatedAt ?? Date.now()).toLocaleDateString()}
+        </Text>
       </View>
     </Screen>
-  );
-}
-
-function Section({title}:{title:string}) {
-  return <Text style={[T.h3, {color: Colors.cyan, marginTop: S.lg, marginBottom: 6}]}>{title}</Text>;
-}
-function Action({text, onPress}:{text:string; onPress:()=>void}) {
-  return (
-    <Pressable onPress={onPress} style={{ backgroundColor: Colors.surface, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12 }}>
-      <Text style={{color: Colors.text, fontWeight:'700'}}>{text}</Text>
-    </Pressable>
   );
 }

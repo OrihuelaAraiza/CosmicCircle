@@ -1,3 +1,4 @@
+// src/store/useDB.ts
 import { create } from 'zustand';
 import { getDB, run, query, tx } from '../db/sqlite';
 import type { Group, Planet } from '../types/models';
@@ -16,6 +17,7 @@ const mapPlanetRow = (r: any): Planet & { groupIds?: string[] } => ({
   notes:    parseArray<string>(r.notes),
   keywords: parseArray<string>(r.keywords),
   socials:  parseArray<{ type: string; url: string }>(r.socials),
+  emoji:    r.emoji ?? null,
 });
 
 type State = {
@@ -58,6 +60,7 @@ export const useDB = create<State>((set, get) => ({
       notes:    parseArray<string>(r.notes),
       keywords: parseArray<string>(r.keywords),
       socials:  parseArray<{ type: string; url: string }>(r.socials),
+      emoji:    r.emoji ?? null,
     }));
     set({ groups, planets, ready: true });
   },
@@ -125,12 +128,13 @@ export const useDB = create<State>((set, get) => ({
   createPlanet: async (p, groupIds) => {
     await tx(async (db) => {
       await db.runAsync(
-        `INSERT INTO planets (id,fullName,jobTitle,company,phone,email,howWeMet,commonGround,notes,keywords,socials,createdAt,updatedAt)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?, ?, ?)`,
+        `INSERT INTO planets (id,fullName,jobTitle,company,phone,email,howWeMet,commonGround,notes,keywords,socials,emoji,createdAt,updatedAt)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?, ?, ?, ?)`,
         [
           p.id, p.fullName, p.jobTitle ?? null, p.company ?? null, p.phone ?? null, p.email ?? null,
           p.howWeMet ?? null, p.commonGround ?? null,
           JSON.stringify(p.notes ?? []), JSON.stringify(p.keywords ?? []), JSON.stringify(p.socials ?? []),
+          p.emoji ?? null,
           p.createdAt, p.updatedAt
         ]
       );
@@ -144,11 +148,12 @@ export const useDB = create<State>((set, get) => ({
   updatePlanet: async (p, groupIds) => {
     await tx(async (db) => {
       await db.runAsync(
-        `UPDATE planets SET fullName=?, jobTitle=?, company=?, phone=?, email=?, howWeMet=?, commonGround=?, notes=?, keywords=?, socials=?, updatedAt=? WHERE id=?`,
+        `UPDATE planets SET fullName=?, jobTitle=?, company=?, phone=?, email=?, howWeMet=?, commonGround=?, notes=?, keywords=?, socials=?, emoji=?, updatedAt=? WHERE id=?`,
         [
           p.fullName, p.jobTitle ?? null, p.company ?? null, p.phone ?? null, p.email ?? null,
           p.howWeMet ?? null, p.commonGround ?? null,
           JSON.stringify(p.notes ?? []), JSON.stringify(p.keywords ?? []), JSON.stringify(p.socials ?? []),
+          p.emoji ?? null,
           Date.now(), p.id
         ]
       );
@@ -174,7 +179,6 @@ export const useDB = create<State>((set, get) => ({
   },
 
   // ===== Queries =====
-  // Ahora devuelve también TODOS los groupIds del planeta (no solo el de la query)
   getPlanetsByGroup: async (groupId) => {
     const rows = await query<any>(
       `SELECT 
@@ -201,7 +205,6 @@ export const useDB = create<State>((set, get) => ({
     );
   },
 
-  // Deep: planetas vinculados a la galaxia o cualquiera de sus sistemas
   getPlanetsInGalaxyDeep: async (galaxyId) => {
     const sysRows = await query<{ id: string }>(`SELECT id FROM groups WHERE parentId=?`, [galaxyId]);
     const ids = [galaxyId, ...sysRows.map(s => s.id)];
