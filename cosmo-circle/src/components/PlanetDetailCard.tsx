@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, Pressable, StyleSheet, Animated, ScrollView, KeyboardAvoidingView,
-  Platform
+  View, Text, TextInput, Pressable, StyleSheet, Animated, ScrollView, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { S } from '../theme/spacing';
 import { T } from '../theme/typography';
+import Planet3D from './Planet3D';
+import Planet2D from './Planet2D';
+import SegmentedControl from '@react-native-segmented-control/segmented-control';
 
 export type MiniGroup = { id: string; name: string; color?: string | null; type?: 'galaxy' | 'system' };
 
@@ -19,14 +21,14 @@ export type PlanetDetail = {
   email?: string | null;
   howWeMet?: string | null;
   commonGround?: string | null;
-  notes?: string[];            // lista de notas
-  emoji?: string | null;       // avatar opcional
-  groups: MiniGroup[];         // grupos actuales
+  notes?: string[];
+  emoji?: string | null;
+  groups: MiniGroup[];
 };
 
 type Props = {
   planet: PlanetDetail;
-  allGroups: MiniGroup[];              // para chips selectables
+  allGroups: MiniGroup[];
   onSave: (p: PlanetDetail, groupIds: string[]) => Promise<void>;
   onDelete?: () => void;
 };
@@ -80,6 +82,9 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
   const [emoji, setEmoji] = useState(planet.emoji ?? '🪐');
   const [groupIds, setGroupIds] = useState<string[]>(planet.groups.map(g => g.id));
 
+  // viewer mode: '3d' | '2d' | 'off'
+  const [viewer, setViewer] = useState<'3d' | '2d' | 'off'>('3d');
+
   // animación de modo edición
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -94,15 +99,22 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
     return g?.color ?? Colors.cyan;
   }, [planet.groups]);
 
-  const toggleGroup = (id: string) =>
-    setGroupIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-
-  const removeGroup = (id: string) => setGroupIds(prev => prev.filter(x => x !== id));
+  // datos visuales para lunas: 1 por grupo + 1 si hay notas
+  const moons = useMemo(() => {
+    const fromGroups = planet.groups.map(g => ({ color: g.color ?? '#9aa4c7' }));
+    const extra = (planet.notes && planet.notes.length) ? [{ color: '#ffd166' }] : [];
+    // cap opcional, pero puedes dejar todas
+    return [...fromGroups, ...extra].map((m, i) => ({ ...m, radius: 1.6 + i * 0.35 }));
+  }, [planet.groups, planet.notes]);
 
   const selectedGroups = useMemo(
     () => groupIds.map(id => allGroups.find(g => g.id === id)).filter(Boolean) as MiniGroup[],
     [groupIds, allGroups]
   );
+
+  const toggleGroup = (id: string) =>
+    setGroupIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const removeGroup = (id: string) => setGroupIds(prev => prev.filter(x => x !== id));
 
   const save = async () => {
     const payload: PlanetDetail = {
@@ -122,10 +134,32 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
     setEditing(false);
   };
 
+  // UI del viewer (selector simple)
+  const ViewerSelector = (
+    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+      <Pressable onPress={() => setViewer('3d')} style={[styles.seg, viewer === '3d' && styles.segActive]}>
+        <Text style={[styles.segText, viewer === '3d' && styles.segTextActive]}>3D</Text>
+      </Pressable>
+      <Pressable onPress={() => setViewer('2d')} style={[styles.seg, viewer === '2d' && styles.segActive]}>
+        <Text style={[styles.segText, viewer === '2d' && styles.segTextActive]}>2D</Text>
+      </Pressable>
+      <Pressable onPress={() => setViewer('off')} style={[styles.seg, viewer === 'off' && styles.segActive]}>
+        <Text style={[styles.segText, viewer === 'off' && styles.segTextActive]}>Off</Text>
+      </Pressable>
+    </View>
+  );
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* Cabecera */}
+        {/* Viewer */}
+        <View style={{ marginBottom: S.md }}>
+          {ViewerSelector}
+          {viewer === '3d' && <Planet3D baseColor={accent} moons={moons} height={260} autoRotate intensity={1} />}
+          {viewer === '2d' && <Planet2D baseColor={accent} moons={moons} height={220} />}
+        </View>
+
+        {/* Cabecera (editable) */}
         <View style={[styles.card, { borderColor: accent }]}>
           <View style={styles.header}>
             <Pressable
@@ -180,7 +214,7 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
 
           {/* Separador */}
           <Animated.View style={[styles.sep, { borderColor }]} />
-          
+
           {/* Grupos */}
           <Section icon="layers-outline" title="Grupos">
             <View style={styles.chipsRow}>
@@ -369,8 +403,13 @@ const styles = StyleSheet.create({
   },
   noteRow: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
   bullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.cyan, marginTop: 8 },
-  btn: {
-    paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center'
+  btn: { paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  btnText: { color: '#000', fontWeight: '800' },
+  seg: {
+    paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: '#2a3356',
+    backgroundColor: '#1a1f37'
   },
-  btnText: { color: '#000', fontWeight: '800' }
+  segActive: { backgroundColor: Colors.cyan, borderColor: Colors.cyan },
+  segText: { color: Colors.textDim, fontWeight: '700' },
+  segTextActive: { color: '#000' },
 });
