@@ -1,36 +1,37 @@
+// app/planet/[id].tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Screen from '../../src/components/Screen';
 import { Colors } from '../../src/theme/colors';
 import { S } from '../../src/theme/spacing';
 import { T } from '../../src/theme/typography';
 import { useDB } from '../../src/store/useDB';
-import PlanetDetailCard from '../../src/components/PlanetDetailCard';
+import PlanetDetailCard, { PlanetDetail } from '../../src/components/PlanetDetailCard';
 import { toast } from '../../src/utils/toast';
 
-export default function PlanetScreen() {
+export default function PlanetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
-  const planets = useDB(s => s.planets);
   const groups = useDB(s => s.groups);
-  const getGroupsByPlanet = useDB(s => s.getGroupsByPlanet);
+  const planets = useDB(s => s.planets);
   const updatePlanet = useDB(s => s.updatePlanet);
-  const deletePlanet = useDB(s => s.deletePlanet);
+  const deletePlanet  = useDB(s => s.deletePlanet);
+  const getGroupsByPlanet = useDB(s => s.getGroupsByPlanet);
 
-  const planet = useMemo(() => planets.find(p => p.id === id), [planets, id]);
-  const [pGroups, setPGroups] = useState<any[]>([]);
+  const planetRow = useMemo(() => planets.find(p => p.id === id), [planets, id]);
+  const [planetGroups, setPlanetGroups] = useState<any[]>([]);
 
   useEffect(() => {
     (async () => {
       if (!id) return;
       const gs = await getGroupsByPlanet(id);
-      setPGroups(gs);
+      setPlanetGroups(gs);
     })();
   }, [id, getGroupsByPlanet]);
 
-  if (!planet) {
+  if (!planetRow) {
     return (
       <Screen>
         <Text style={[T.h1, { color: Colors.text }]}>Planeta no encontrado</Text>
@@ -40,58 +41,64 @@ export default function PlanetScreen() {
 
   const allGroups = groups.map(g => ({ id: g.id, name: g.name, color: g.color, type: g.type }));
 
-  const onSave = async (payload: any, groupIds: string[]) => {
-    await updatePlanet(
-      {
-        ...planet,
-        fullName: payload.fullName,
-        jobTitle: payload.jobTitle,
-        company: payload.company,
-        phone: payload.phone,
-        email: payload.email,
-        howWeMet: payload.howWeMet,
-        commonGround: payload.commonGround,
-        emoji: payload.emoji,
-        notes: payload.notes ?? [],
-      },
-      groupIds
-    );
-    toast.success('Cambios guardados');
+  const planetDetail: PlanetDetail = {
+    id: planetRow.id,
+    fullName: planetRow.fullName,
+    jobTitle: planetRow.jobTitle ?? null,
+    company: planetRow.company ?? null,
+    phone: planetRow.phone ?? null,
+    email: planetRow.email ?? null,
+    howWeMet: planetRow.howWeMet ?? null,
+    commonGround: planetRow.commonGround ?? null,
+    notes: Array.isArray(planetRow.notes) ? planetRow.notes : [],
+    emoji: '🪐', // sólo UI
+    groups: planetGroups.map(g => ({ id: g.id, name: g.name, color: g.color, type: g.type })),
   };
 
-  const onDelete = async () => {
-    await deletePlanet(planet.id);
-    toast.success('Planeta eliminado');
-    router.back();
+  const onSave = async (p: PlanetDetail, groupIds: string[]) => {
+    // Construimos un objeto compatible con tu modelo Planet (sin emoji)
+    await updatePlanet(
+      {
+        id: p.id,
+        fullName: p.fullName,
+        jobTitle: p.jobTitle ?? null,
+        company: p.company ?? null,
+        phone: p.phone ?? null,
+        email: p.email ?? null,
+        howWeMet: p.howWeMet ?? null,
+        commonGround: p.commonGround ?? null,
+        notes: p.notes ?? [],
+        keywords: [],       // deja como está si usas keywords
+        socials: [],        // idem
+        createdAt: planetRow.createdAt,
+        updatedAt: Date.now(),
+      } as any,
+      groupIds
+    );
+    toast.success('Planeta actualizado', p.fullName);
+  };
+
+  const onDelete = () => {
+    Alert.alert('Eliminar planeta', `¿Eliminar a "${planetRow.fullName}"?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+          await deletePlanet(planetRow.id);
+          toast.success('Planeta eliminado', planetRow.fullName);
+          router.back();
+        }
+      }
+    ]);
   };
 
   return (
     <Screen scroll>
+      <Text style={[T.h1, { color: Colors.text, marginBottom: S.sm }]}>{planetRow.fullName}</Text>
       <PlanetDetailCard
-        planet={{
-          id: planet.id,
-          fullName: planet.fullName,
-          jobTitle: planet.jobTitle,
-          company: planet.company,
-          phone: planet.phone,
-          email: planet.email,
-          howWeMet: planet.howWeMet,
-          commonGround: planet.commonGround,
-          emoji: planet.emoji ?? '🪐',
-          notes: planet.notes ?? [],
-          groups: pGroups.map(g => ({ id: g.id, name: g.name, color: g.color, type: g.type }))
-        }}
+        planet={planetDetail}
         allGroups={allGroups}
         onSave={onSave}
         onDelete={onDelete}
       />
-
-      {/* (Opcional) encabezado simple fuera de la card */}
-      <View style={{ marginTop: S.sm }}>
-        <Text style={[T.p, { color: Colors.textDim }]}>
-          Última actualización: {new Date(planet.updatedAt ?? Date.now()).toLocaleDateString()}
-        </Text>
-      </View>
     </Screen>
   );
 }

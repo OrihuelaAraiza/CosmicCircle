@@ -1,3 +1,4 @@
+// src/components/PlanetDetailCard.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, Pressable, StyleSheet, Animated, ScrollView, KeyboardAvoidingView, Platform
@@ -8,7 +9,6 @@ import { S } from '../theme/spacing';
 import { T } from '../theme/typography';
 import Planet3D from './Planet3D';
 import Planet2D from './Planet2D';
-import SegmentedControl from '@react-native-segmented-control/segmented-control';
 
 export type MiniGroup = { id: string; name: string; color?: string | null; type?: 'galaxy' | 'system' };
 
@@ -22,6 +22,7 @@ export type PlanetDetail = {
   howWeMet?: string | null;
   commonGround?: string | null;
   notes?: string[];
+  // emoji es sólo UI, no lo persistimos en DB si tu modelo no lo soporta
   emoji?: string | null;
   groups: MiniGroup[];
 };
@@ -84,6 +85,7 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
 
   // viewer mode: '3d' | '2d' | 'off'
   const [viewer, setViewer] = useState<'3d' | '2d' | 'off'>('3d');
+  const [tooltip, setTooltip] = useState<string | null>(null);
 
   // animación de modo edición
   const a = useRef(new Animated.Value(0)).current;
@@ -91,19 +93,23 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
     Animated.timing(a, { toValue: editing ? 1 : 0, duration: 220, useNativeDriver: false }).start();
   }, [editing]);
 
-  const labelOpacity = a.interpolate({ inputRange: [0, 1], outputRange: [1, 0.55] });
   const borderColor  = a.interpolate({ inputRange: [0, 1], outputRange: ['#202744', Colors.cyan] as any });
 
+  // color base = del primer grupo con color; si no, Colors.cyan
   const accent = useMemo(() => {
     const g = planet.groups.find(x => x.color);
     return g?.color ?? Colors.cyan;
   }, [planet.groups]);
 
-  // datos visuales para lunas: 1 por grupo + 1 si hay notas
+  // LUNAS con label: una por grupo + una extra por notas
   const moons = useMemo(() => {
-    const fromGroups = planet.groups.map(g => ({ color: g.color ?? '#9aa4c7' }));
-    const extra = (planet.notes && planet.notes.length) ? [{ color: '#ffd166' }] : [];
-    // cap opcional, pero puedes dejar todas
+    const fromGroups = planet.groups.map(g => ({
+      color: g.color ?? '#9aa4c7',
+      label: `${g.type === 'system' ? 'Sistema' : 'Galaxia'}: ${g.name}`,
+    }));
+    const extra = (planet.notes && planet.notes.length)
+      ? [{ color: '#ffd166', label: `Notas: ${planet.notes.length}` }]
+      : [];
     return [...fromGroups, ...extra].map((m, i) => ({ ...m, radius: 1.6 + i * 0.35 }));
   }, [planet.groups, planet.notes]);
 
@@ -117,6 +123,7 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
   const removeGroup = (id: string) => setGroupIds(prev => prev.filter(x => x !== id));
 
   const save = async () => {
+    // NO persistimos emoji si tu modelo Planet no lo tiene
     const payload: PlanetDetail = {
       ...planet,
       fullName: fullName.trim() || '(Sin nombre)',
@@ -126,15 +133,16 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
       email: email || null,
       howWeMet: howWeMet || null,
       commonGround: commonGround || null,
-      emoji,
       notes,
+      // emoji queda en UI; puedes guardarlo a futuro si amplías el schema
+      emoji,
       groups: selectedGroups
     };
     await onSave(payload, groupIds);
     setEditing(false);
   };
 
-  // UI del viewer (selector simple)
+  // pill selector simple multiplataforma
   const ViewerSelector = (
     <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginBottom: 8 }}>
       <Pressable onPress={() => setViewer('3d')} style={[styles.seg, viewer === '3d' && styles.segActive]}>
@@ -155,7 +163,32 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
         {/* Viewer */}
         <View style={{ marginBottom: S.md }}>
           {ViewerSelector}
-          {viewer === '3d' && <Planet3D baseColor={accent} moons={moons} height={260} autoRotate intensity={1} />}
+
+          {/* Tooltip simple arriba; cámbialo por Toast si prefieres */}
+          {tooltip && (
+            <View style={styles.tooltip}>
+              <Text style={{ color: Colors.text }}>{tooltip}</Text>
+            </View>
+          )}
+
+          {viewer === '3d' && (
+            <Planet3D
+              baseColor={accent}
+              moons={moons}
+              height={260}
+              autoRotate
+              intensity={1}
+              showRings
+              // ejemplo: nº de anillos en función de notas (cada 2 notas = 1 anillo; máx 3)
+              closenessLevel={Math.min(3, Math.max(0, planet.notes ? Math.ceil((planet.notes.length)/2) : 0)) as 0|1|2|3}
+              showOrbits
+              procedural
+              onMoonPress={(m) => {
+                setTooltip(m.label || '—');
+                setTimeout(() => setTooltip(null), 2500);
+              }}
+            />
+          )}
           {viewer === '2d' && <Planet2D baseColor={accent} moons={moons} height={220} />}
         </View>
 
@@ -207,7 +240,7 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
             </View>
 
             {/* Toggle edición */}
-            <Pressable onPress={() => setEditing(v => !v)} style={styles.editBtn}>
+            <Pressable onPress={() => (editing ? save() : setEditing(true))} style={styles.editBtn}>
               <Ionicons name={editing ? 'checkmark' : 'create-outline'} size={18} color="#000" />
             </Pressable>
           </View>
@@ -298,17 +331,8 @@ export default function PlanetDetailCard({ planet, allGroups, onSave, onDelete }
             )}
           </Section>
 
-          {/* Botonera acción */}
-          {editing ? (
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: S.lg }}>
-              <Pressable onPress={() => setEditing(false)} style={[styles.btn, { backgroundColor: Colors.surface }]}>
-                <Text style={[styles.btnText, { color: Colors.text }]}>Cancelar</Text>
-              </Pressable>
-              <Pressable onPress={save} style={[styles.btn, { backgroundColor: Colors.cyan }]}>
-                <Text style={styles.btnText}>Guardar</Text>
-              </Pressable>
-            </View>
-          ) : !!onDelete && (
+          {/* Botón eliminar si no está en edición */}
+          {!editing && !!onDelete && (
             <Pressable onPress={onDelete} style={[styles.btn, { backgroundColor: Colors.error || '#ff4444', marginTop: S.lg }]}>
               <Text style={styles.btnText}>Eliminar planeta</Text>
             </Pressable>
@@ -364,6 +388,11 @@ function EditableNotes({ notes, onChange }:{ notes: string[]; onChange: (n: stri
 }
 
 const styles = StyleSheet.create({
+  tooltip: {
+    position: 'absolute', top: 4, right: 8, zIndex: 10,
+    backgroundColor: '#10152a', borderWidth: 1, borderColor: '#283057',
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10
+  },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: 18,

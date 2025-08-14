@@ -16,6 +16,7 @@
     "@expo-google-fonts/space-grotesk": "^0.4.0",
     "@expo/vector-icons": "^14.1.0",
     "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-native-community/slider": "4.5.6",
     "@react-native-segmented-control/segmented-control": "^2.5.7",
     "@react-navigation/native": "^7.1.6",
     "@react-three/drei": "^10.6.1",
@@ -31,6 +32,7 @@
     "expo-sqlite": "~15.2.14",
     "expo-status-bar": "~2.2.3",
     "expo-system-ui": "~5.0.10",
+    "expo-three": "^8.0.0",
     "expo-web-browser": "~14.2.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
@@ -42,9 +44,10 @@
     "react-native-svg": "15.11.2",
     "react-native-toast-message": "^2.3.3",
     "react-native-web": "~0.20.0",
-    "three": "^0.179.1",
+    "three": "^0.166.0",
     "zod": "^4.0.17",
-    "zustand": "^5.0.7"
+    "zustand": "^5.0.7",
+    "expo-asset": "~11.1.7"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

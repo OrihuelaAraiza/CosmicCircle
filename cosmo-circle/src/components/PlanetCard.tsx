@@ -1,4 +1,3 @@
-// src/components/PlanetCard.tsx
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -7,13 +6,15 @@ import Animated, { FadeInUp, useSharedValue, withSpring, useAnimatedStyle } from
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 import { S } from '../theme/spacing';
-import { typeColors } from './TypePill';
 
 export type PlanetCardGroup = { id: string; name: string; color?: string | null };
+
 export type PlanetCardProps = {
   id: string;
   name: string;
   company?: string | null;
+  /** Si prefieres, mándame un subtítulo ya compuesto (p.ej. “UX @ IBM”) */
+  subtitle?: string | null;
   notesCount?: number;
   groups: PlanetCardGroup[];
   emoji?: string | null;
@@ -25,19 +26,16 @@ export type PlanetCardProps = {
   onEditAvatar?: (id: string) => void;
 };
 
-/* ---------- helpers ---------- */
+/* helpers */
 const getInitials = (full: string) =>
   full.trim().split(/\s+/).slice(0, 2).map(s => s[0]?.toUpperCase() ?? '').join('');
 
-/** genera un par (tupla) de colores a partir de un string, para el gradiente del avatar */
 const hashToHue = (str: string) => {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 360;
+  let h = 0; for (let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) % 360;
   return h;
 };
 const avatarGradient = (seed: string): readonly [ColorValue, ColorValue] => {
   const h = hashToHue(seed || 'seed');
-  // devolvemos una TUPLA readonly de ColorValue, no string[]
   return [`hsl(${h} 85% 55%)`, `hsl(${(h + 35) % 360} 85% 45%)`] as const;
 };
 
@@ -47,12 +45,10 @@ const Chip = ({ label, color }: { label: string; color?: string | null }) => (
   </View>
 );
 
-/* ---------- component ---------- */
 export default function PlanetCard({
-  id, name, company, notesCount = 0, groups, emoji, index = 0,
+  id, name, company, subtitle, notesCount = 0, groups, emoji, index = 0,
   onPress, onView, onEdit, onDelete, onEditAvatar
 }: PlanetCardProps) {
-
   const accent = useMemo(() => groups.find(g => g.color)?.color ?? Colors.cyan, [groups]);
 
   // micro-interacciones
@@ -73,7 +69,9 @@ export default function PlanetCard({
     </View>
   );
 
-  const grad = avatarGradient(name || id); // <- ahora es una tupla compatible
+  const grad = avatarGradient(name || id);
+
+  const sub = subtitle ?? (company ?? '');
 
   return (
     <Animated.View entering={FadeInUp.delay(index * 60).springify()} style={[aCard, styles.shadow]}>
@@ -85,20 +83,24 @@ export default function PlanetCard({
           onPressOut={() => (pressed.value = 0)}
           style={styles.press}
         >
-          {/* borde gradiente suave */}
-          <LinearGradient colors={[`${accent}66`, '#1a223f']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.border} />
-          {/* halo on tap */}
+          {/* borde gradiente en el fondo */}
+          <LinearGradient
+            colors={[`${accent}66`, '#1a223f']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.border}
+          />
+          {/* halo */}
           <Animated.View style={[styles.halo, aHalo]} />
 
           {/* contenido */}
           <View style={styles.card}>
+            {/* fila superior */}
             <View style={styles.headerRow}>
               <Pressable onPress={() => onEditAvatar?.(id)} style={{ borderRadius: 999, overflow: 'hidden' }}>
                 <View style={[styles.avatar, { borderColor: accent }]}>
                   <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
-                  <Text style={styles.avatarEmoji}>
-                    {emoji ?? getInitials(name || 'P')}
-                  </Text>
+                  <Text style={styles.avatarEmoji}>{emoji ?? getInitials(name || 'P')}</Text>
                 </View>
               </Pressable>
 
@@ -109,15 +111,17 @@ export default function PlanetCard({
               </View>
             </View>
 
+            {/* texto: siempre visible */}
             <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
               {name || '(Sin nombre)'}
             </Text>
-            {!!company && (
+            {!!sub && (
               <Text style={styles.subtitle} numberOfLines={1} ellipsizeMode="tail">
-                {company}
+                {sub}
               </Text>
             )}
 
+            {/* chips */}
             {groups.length > 0 && (
               <View style={styles.chipsRow}>
                 {groups.slice(0, 3).map(g => <Chip key={g.id} label={g.name} color={g.color} />)}
@@ -135,7 +139,6 @@ export default function PlanetCard({
   );
 }
 
-/* ---------- subcomponents ---------- */
 function ActionBtn({ icon, label, onPress, danger }: { icon: any; label: string; onPress?: () => void; danger?: boolean }) {
   return (
     <Pressable onPress={onPress} style={[styles.actionBtn, danger && { backgroundColor: '#E11D48' }]}>
@@ -145,103 +148,35 @@ function ActionBtn({ icon, label, onPress, danger }: { icon: any; label: string;
   );
 }
 
-/* ---------- styles ---------- */
 const styles = StyleSheet.create({
-  shadow: {
-    shadowColor: '#000',
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  press: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    marginBottom: S.md,
-  },
-  border: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 18,
-  },
-  halo: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
+  shadow: { shadowColor: '#000', shadowRadius: 12, shadowOffset: { width: 0, height: 8 } },
+  press: { borderRadius: 18, overflow: 'hidden', marginBottom: S.md },
+  border: { ...StyleSheet.absoluteFillObject, borderRadius: 18, zIndex: 0 },
+  halo: { ...StyleSheet.absoluteFillObject, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.06)', zIndex: 0 },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: S.lg,
     gap: 8,
+    minHeight: 110,   // 👈 asegura espacio para texto
+    zIndex: 1,        // 👈 contenido por encima del halo/borde
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    overflow: 'hidden',
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, overflow: 'hidden',
   },
-  avatarEmoji: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  indicators: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
-    lineHeight: 22,
-  },
-  subtitle: {
-    color: '#9CA3AF',
-    fontSize: 14,
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-  },
-  chip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    maxWidth: '75%',
-  },
-  chipText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  actionsWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 6,
-    gap: 6,
-  },
+  avatarEmoji: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  indicators: { flexDirection: 'row', gap: 8 },
+  title: { color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 22 },
+  subtitle: { color: '#9CA3AF', fontSize: 14 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  chip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, borderWidth: 1, maxWidth: '75%' },
+  chipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  actionsWrap: { flexDirection: 'row', alignItems: 'center', paddingLeft: 6, gap: 6 },
   actionBtn: {
-    height: '88%',
-    alignSelf: 'center',
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 4,
+    height: '88%', alignSelf: 'center', backgroundColor: '#3B82F6', paddingHorizontal: 12,
+    borderRadius: 12, justifyContent: 'center', alignItems: 'center', gap: 4,
   },
-  actionText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
+  actionText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 });
