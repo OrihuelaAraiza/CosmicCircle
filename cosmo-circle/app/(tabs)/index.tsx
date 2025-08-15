@@ -56,6 +56,7 @@ export default function CosmosScreen() {
         name: g.name,
         color: g.color ?? '#22d3ee',
         size,
+        systems: systems.length,
       };
     });
   }, [filtered, allGroups]);
